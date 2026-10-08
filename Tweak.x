@@ -5,7 +5,7 @@
 #import <objc/message.h>
 
 // Passe a 0 une fois que tout marche (les toasts servent de debug, faute de logs).
-#define BL_DEBUG_TOASTS 1
+#define BL_DEBUG_TOASTS 0
 
 // Actif par defaut. Pour desactiver : defaults write com.google.ios.youtubemusic BetterLyricsDisabled -bool YES
 #define BL_ENABLED() (![[NSUserDefaults standardUserDefaults] boolForKey:@"BetterLyricsDisabled"])
