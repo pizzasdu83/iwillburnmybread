@@ -10,6 +10,6 @@ TWEAK_NAME = BetterLyricsYTM
 
 BetterLyricsYTM_FILES = Tweak.x
 BetterLyricsYTM_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
-BetterLyricsYTM_FRAMEWORKS = UIKit Foundation QuartzCore
+BetterLyricsYTM_FRAMEWORKS = UIKit Foundation QuartzCore MediaPlayer
 
 include $(THEOS_MAKE_PATH)/tweak.mk

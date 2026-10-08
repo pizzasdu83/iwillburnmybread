@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
+#import <MediaPlayer/MediaPlayer.h>
 #import <objc/message.h>
 
 // Passe a 0 une fois que tout marche (les toasts servent de debug, faute de logs).
@@ -213,23 +214,46 @@ static void BLFetch(NSString *videoID, NSString *title, NSString *artist, double
 
 static void BLTick(YTPlayerViewController *pvc) {
     if (!BL_ENABLED()) return;
+    // Selon la version de l'app, certains selecteurs n'existent pas : on verifie avant chaque appel.
+    if (![pvc respondsToSelector:@selector(currentVideoID)]) return;
     NSString *vid = pvc.currentVideoID;
     if (!vid.length) return;
 
     BLStore *s = [BLStore shared];
     s.player = pvc;
-    s.lastTime = pvc.currentVideoMediaTime;
+    if ([pvc respondsToSelector:@selector(currentVideoMediaTime)]) {
+        s.lastTime = pvc.currentVideoMediaTime;
+    }
     s.lastStamp = CACurrentMediaTime();
 
     if ([vid isEqualToString:s.videoID]) return;
 
-    YTIVideoDetails *d = pvc.playerResponse.playerData.videoDetails;
-    double dur = pvc.currentVideoTotalMediaTime;
-    if (!d.title.length || dur <= 0) return; // pas encore pret : on reessaie au prochain tick
+    NSDictionary *np = [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo;
+    double npDur = [np[MPMediaItemPropertyPlaybackDuration] doubleValue];
+
+    double dur = [pvc respondsToSelector:@selector(currentVideoTotalMediaTime)] ? pvc.currentVideoTotalMediaTime : 0;
+    NSString *title = nil;
+    NSString *artist = nil;
+
+    if ([pvc respondsToSelector:@selector(playerResponse)]) {
+        YTIVideoDetails *d = pvc.playerResponse.playerData.videoDetails;
+        title = d.title;
+        artist = d.author;
+    }
+
+    if (!title.length) {
+        // Repli : les infos "En cours de lecture" d'iOS (titre, artiste, duree)
+        if (dur > 0 && npDur > 0 && fabs(npDur - dur) > 2.0) return; // pas encore a jour pour cette piste
+        if (dur <= 0) dur = npDur;
+        title = np[MPMediaItemPropertyTitle];
+        artist = np[MPMediaItemPropertyArtist];
+    }
+
+    if (!title.length || dur <= 0) return; // pas encore pret : on reessaie au prochain tick
 
     s.videoID = vid;
     s.lines = nil;
-    BLFetch(vid, d.title, d.author, dur);
+    BLFetch(vid, title, artist, dur);
 }
 
 %hook YTPlayerViewController
@@ -252,12 +276,11 @@ static void BLTick(YTPlayerViewController *pvc) {
 @implementation BLWeakTarget
 - (void)tick:(CADisplayLink *)link {
     id t = self.target;
-        if (t) {
+    if (t) {
         void (*send)(id, SEL) = (void (*)(id, SEL))objc_msgSend;
-            send(t, NSSelectorFromString(@"blTick"));
-        }
-        else [link invalidate];
-
+        send(t, NSSelectorFromString(@"blTick"));
+    }
+    else [link invalidate];
 }
 @end
 
@@ -436,7 +459,8 @@ static void BLTick(YTPlayerViewController *pvc) {
                              fractionOfDistanceBetweenInsertionPoints:NULL];
     for (NSUInteger i = 0; i < self.blRanges.count; i++) {
         if (NSLocationInRange(ch, [self.blRanges[i] rangeValue])) {
-            [[BLStore shared].player seekToTime:lines[i].time];
+            YTPlayerViewController *player = [BLStore shared].player;
+            if ([player respondsToSelector:@selector(seekToTime:)]) [player seekToTime:lines[i].time];
             break;
         }
     }
