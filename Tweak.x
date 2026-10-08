@@ -252,8 +252,12 @@ static void BLTick(YTPlayerViewController *pvc) {
 @implementation BLWeakTarget
 - (void)tick:(CADisplayLink *)link {
     id t = self.target;
-    if (t) [t performSelector:NSSelectorFromString(@"blTick")];
-    else [link invalidate];
+        if (t) {
+        void (*send)(id, SEL) = (void (*)(id, SEL))objc_msgSend;
+            send(t, NSSelectorFromString(@"blTick"));
+        }
+        else [link invalidate];
+
 }
 @end
 
